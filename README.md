@@ -32,7 +32,7 @@ This infrastructure uses Docker Compose to orchestrate independent containers, e
 Each service runs in its own container, adhering to the "one container, one service" philosophy.
 
 ### Technical Comparisons
-1. Virtual Machines vs Docker
+**1. Virtual Machines vs Docker**
 
 * **Virtual Machines (VMs):** VMs virtualize physical hardware. Each VM includes a full guest operating system, virtual drivers,
 and a hypervisor layer. This results in a heavy resource footprint, slow boot times, and significant memory overhead.
@@ -41,7 +41,7 @@ and a hypervisor layer. This results in a heavy resource footprint, slow boot ti
 They share the host system's kernel, making them lightweight, fast to boot (seconds), and highly efficient in terms of CPU and
 memory utilization.
 
-2. Secrets vs Environment Variables
+**2. Secrets vs Environment Variables**
 
 * **Environment Variables:** These variables are stored in plain text within the process environment.
 They can easily leak through system logs, process listings (ps), or container inspection tools (docker inspect).
@@ -51,7 +51,7 @@ They are suitable for non-sensitive configurations.
 They are encrypted at rest, transmitted securely, and mounted dynamically in-memory only to authorized containers, minimizing the
 risk of accidental exposure.
 
-3. Docker Network vs Host Network
+**3. Docker Network vs Host Network**
 
 * **Host Network:** In host networking mode, the container shares the host's network stack directly.
 There is no isolation between the host and the container, meaning container ports map directly to host ports, which can cause conflicts
@@ -61,7 +61,7 @@ and introduces security risks.
 Containers can communicate securely with each other using internal IPs or service names (via automatic DNS), and only explicitly
 exposed ports are accessible from the host system.
 
-4. Docker Volumes vs Bind Mounts
+**4. Docker Volumes vs Bind Mounts**
 
 * **Bind Mounts:** A bind mount links a specific, absolute path on the host machine directly to a path inside the container.
 It depends on the host's file system structure, making it less portable and exposing the host files to potential corruption or
