@@ -29,11 +29,20 @@ make stop
 ## 3. Accessing the Application
 
 ### Prerequisites
-Before accessing the website, you must map the local domain name to your loopback IP address.
-Add the following line to your host machine's /etc/hosts file:
+Before accessing the website, you should map the local domain name to your loopback IP address and
+add the following line to your host machine's /etc/hosts file:
 ```bash
 127.0.0.1 yafranco.42.fr
 ```
+However, since modifying the host's /etc/hosts file requires administrator (sudo) privileges—which are unavailable on
+the cluster's host machines—we must bypass this restriction using a volatile DNS resolution directly within the browser.
+To do this, open the browser by running the following command in your terminal:
+```bash
+chromium-browser --user-data-dir=/tmp/chrome_temp --host-rules="MAP yafranco.42.fr 127.0.0.1:4430" --ignore-certificate-errors &
+```
+⚠️ Note: This command maps the domain yafranco.42.fr to the host's local port 4430 (which is configured to forward traffic directly
+to the standard HTTPS port 443 inside the Virtual Machine). This allows you to access the site using the clean,
+required URL without any visible port numbers.
 
 ### Web Interfaces
 Once the infrastructure is running, open your web browser and navigate to:

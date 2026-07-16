@@ -26,6 +26,26 @@ To build, run, and manage this infrastructure, a Makefile is provided at the roo
    ```bash
    make fclean
    ```
+
+### Accessing the Website (Cluster Workaround)
+
+Since we do not have administrator (sudo) privileges on the school's host machines, we cannot modify the /etc/hosts file
+to map yafranco.42.fr to our loopback IP.
+To bypass this restriction and access the site using the clean, required URL, we use a volatile DNS resolution directly
+within the browser. Run the following command on your host terminal (not inside the VM):
+```bash
+chromium-browser --user-data-dir=/tmp/chrome_temp --host-rules="MAP yafranco.42.fr 127.0.0.1:4430" --ignore-certificate-errors &
+```
+
+Note: This command routes yafranco.42.fr through the host's port 4430, which forwards traffic directly to Nginx's secure port 443 inside the VM. This allows you to access the site using the clean, required URL without any visible port numbers.
+
+Once Chromium opens, you can access the services at:
+
+* **WordPress Website:** https://yafranco.42.fr
+* **WordPress Admin Dashboard:** https://yafranco.42.fr/wp-admin
+
+(For more detailed instructions, credentials management, and troubleshooting, please refer to USER_DOC.md.)
+
 ### Project Description
 
 This infrastructure uses Docker Compose to orchestrate independent containers, ensuring service isolation and reproducible environments.
