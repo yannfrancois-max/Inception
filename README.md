@@ -29,7 +29,8 @@ Verify that the srcs folder and the Makefile are located at the root of the repo
 │   └── ...
 ├── Makefile
 ├── README.md
-└── DEV_DOC.md (or USER_DOC.md)
+├── USER_DOC.md
+└── DEV_DOC.md
 ```
 
 ### Setup and Execution
@@ -68,6 +69,14 @@ Once Chromium opens, you can access the services at:
 * **WordPress Admin Dashboard:** https://yafranco.42.fr/wp-admin
 
 (For more detailed instructions, credentials management, and troubleshooting, please refer to USER_DOC.md.)
+
+*   **Inspect the Certificate Metadata directly over the network:**
+    ```bash
+    openssl s_client -connect yafranco.42.fr:443 2>/dev/null | openssl x509 -text -noout
+    ```
+    *What the evaluator will check:*
+    *   **Subject / CN (Common Name):** Must match `yafranco.42.fr` strictly.
+    *   **Issuer:** Must confirm it is a self-signed certificate generated locally for the project.
 
 ### Project Description
 
@@ -148,6 +157,7 @@ This section compiles the official procedures to validate the proper functioning
      ```sql
      SHOW DATABASES;
      ```
+     *Expected output: Must list your dedicated database (e.g., inception_db or as defined in .env).*
 
   3. **Select the application database:**
      ```sql
@@ -158,5 +168,13 @@ This section compiles the official procedures to validate the proper functioning
      ```sql
      SHOW TABLES;
      ```
+
+  5. **Audit user privileges and host constraints:**
+     ```sql
+     SELECT User, Host FROM mysql.user;
+     SHOW GRANTS FOR 'wp_user'@'%';
+     ```
+     *What this proves: This confirms that the WordPress database user (wp_user) is restricted exclusively to the WordPress*
+     *database, adhering to the principle of least privilege.*
 
 </details>

@@ -1,6 +1,7 @@
 # Inception - Developer Documentation
 
-This documentation provides technical insights into the architecture, configuration, and advanced management of the Inception infrastructure.
+This documentation provides technical insights into the architecture, configuration, and advanced management of the Inception
+infrastructure.
 
 ---
 
@@ -33,7 +34,8 @@ The project follows a strict service isolation policy ("one service, one contain
 
 * **External Traffic:** Port 443 is exposed on the host machine and mapped exclusively to the Nginx container.
 
-* **Internal Traffic:** Nginx communicates with WordPress via port 9000 (FastCGI). WordPress connects to MariaDB via port 3306. This internal routing happens seamlessly over a private, custom network.
+* **Internal Traffic:** Nginx communicates with WordPress via port 9000 (FastCGI). WordPress connects to MariaDB via port 3306.
+This internal routing happens seamlessly over a private, custom network.
 
 ## 2. Environment Prerequisites
 
@@ -59,7 +61,7 @@ During build time and initialization scripts:
 
 When modifying services or troubleshooting configuration errors, use these targeted commands from the root directory:
 
-## Environment Reset (The "Nuke" Command)
+### Environment Reset (The "Nuke" Command)
 
 Before running or evaluating the project, it is highly recommended to completely purge the host machine of any active or
 residual Docker containers, images, volumes, and networks to prevent conflicts:
@@ -140,6 +142,53 @@ You must force a complete rebuild without using cached layers:
 docker compose -f srcs/docker-compose.yml up -d --build --no-cache
 ```
 
+### Nginx SSL/TLS & Port Security Audit
+
+To verify the strict security requirements of Nginx (Port isolation and TLS version restrictions):
+
+*   **Verify that HTTP (Port 80) is completely blocked/unreachable:**
+    ```bash
+    curl -I [http://yafranco.42.fr](http://yafranco.42.fr)
+    ```
+    *Expected output: `Connection refused` (indicating no service is listening on port 80).*
+
+*   **Verify that HTTPS (Port 443) is active and accessible:**
+    ```bash
+    curl -I -k [https://yafranco.42.fr](https://yafranco.42.fr)
+    ```
+    *Expected output: `HTTP/1.1 200 OK` (ignoring the self-signed certificate warning with `-k`).*
+
+*   **Verify the active TLS Protocol Version (TLSv1.2 or TLSv1.3):**
+    ```bash
+    openssl s_client -connect yafranco.42.fr:443
+    ```
+    *Inspection: Look for the line `Protocol  : TLSv1.2` or `Protocol  : TLSv1.3` in the output summary.*
+
+*   **Prove that outdated protocols (TLSv1.1 and below) are strictly rejected:**
+    ```bash
+    openssl s_client -connect yafranco.42.fr:443 -tls1_1
+    ```
+    *Expected output: Connection failure / Handshake error (proving Nginx enforces modern encryption standards).*
+
+### Docker Network Audit
+
+To verify that the containers communicate over an isolated, custom private network and are not using the default host network:
+
+*   **List all active Docker networks:**
+    ```bash
+    docker network ls
+    ```
+    *What the evaluator will check:*
+    *Look for your custom network (typically named `srcs_inception` or `srcs_inception_net`) with the driver set to `bridge`.*
+
+*   **Inspect the custom network details:**
+    ```bash
+    docker network inspect srcs_inception
+    ```
+    *What this proves:*
+    *This command outputs a JSON showing the exact subnets and, crucially, lists all three running containers*
+    *(`nginx`, `wordpress`, `mariadb`) connected to this network with their internal IP addresses.*
+
 ## 5. Data Persistence & Volume Mechanics
 Data persistence is critical to prevent state loss when containers recycle. Docker Volumes are mounted onto specific host paths
 to isolate runtime engines from static application data.
@@ -154,11 +203,37 @@ As required by the administration deployment guidelines, the persistent storage 
 ### Volume Inspection
 
 To inspect how Docker sees and structures these components within its subsystem, use:
-```bash
-docker volume ls
-docker volume inspect srcs_wordpress
-docker volume inspect srcs_mariadb
-```
+*   **List all active volumes:**
+    ```bash
+    docker volume ls
+    ```
+
+*   **Inspect WordPress Volume configuration:**
+    ```bash
+    docker volume inspect srcs_wordpress_data
+    ```
+    *What the evaluator will check:* Verify that the `"Options"` block contains `"device": "/home/yafranco/data/wordpress"`.
+
+*   **Inspect MariaDB Volume configuration:**
+    ```bash
+    docker volume inspect srcs_mariadb_data
+    ```
+    *What the evaluator will check:* Verify that the `"Options"` block contains `"device": "/home/yafranco/data/mariadb"`.
+
+### Physical Path Verification (On the Host)
+
+To prove to the evaluator that data is physically written and persistent on the host filesystem:
+
+*   **Check WordPress files on the host:**
+    ```bash
+    ls -la /home/yafranco/data/wordpress
+    ```
+
+*   **Check MariaDB database files on the host:**
+    ```bash
+    ls -la /home/yafranco/data/mariadb
+    ```
+    *Expected output:* You should see actual MariaDB configuration and database files
 
 ## 🔒 Git & Security Audit Protocol
 
