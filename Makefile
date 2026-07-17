@@ -12,8 +12,10 @@ clean:
 	docker compose -f srcs/docker-compose.yml down -v
 
 fclean:	clean
-	@sudo rm -rf /home/yafranco/data/mariadb
-	@sudo rm -rf /home/yafranco/data/wordpress
+	@# Utilisation d'un conteneur temporaire pour supprimer les fichiers root sans sudo
+	@if [ -d "/home/yafranco/data" ]; then \
+		docker run --rm -v /home/yafranco/data:/data debian:bookworm rm -rf /data/mariadb /data/wordpress; \
+	fi
 	docker system prune -af
 
 re:	fclean all
