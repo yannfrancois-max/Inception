@@ -9,6 +9,29 @@ All components are interconnected via a dedicated isolated Docker network and ut
 ## Instructions
 To build, run, and manage this infrastructure, a Makefile is provided at the root of the repository.
 
+## 📁 Project Structure & Setup
+
+To clone and inspect the directory structure of this project, follow these steps:
+
+### 1. Clone the repository
+```bash
+git clone <your-repository-url> Inception && cd Inception
+```
+
+### 2. Expected Directory Structure
+
+Verify that the srcs folder and the Makefile are located at the root of the repository:
+
+```Plaintext
+.
+├── srcs/
+│   ├── docker-compose.yml
+│   └── ...
+├── Makefile
+├── README.md
+└── DEV_DOC.md (or USER_DOC.md)
+```
+
 ### Setup and Execution
 1. To build, configure, and start all containers in the background:
    ```bash
@@ -98,3 +121,42 @@ portable, and easier to backup or share between containers.
 * Nginx and MariaDB official administration guides.
 * AI Usage: An AI assistant was used as a learning aid to clarify concepts regarding system architecture, cross-verify Docker
 volume mechanisms, and ensure proper security practices regarding environment variables.
+
+## 📊 Test and Validation Protocol
+
+This section compiles the official procedures to validate the proper functioning of the infrastructure and ensure database integrity.
+
+### 1. Database and Persistence Validation
+
+<details>
+  <summary><b>🔍 Click to expand the MariaDB inspection protocol</b></summary>
+
+  To prove that the database is active, correctly configured, and populated with data, follow these steps:
+
+  1. **Interactive connection to the MariaDB container:**
+     As the root user:
+     ```bash
+     docker exec -it mariadb mariadb -u root -p
+     ```
+     As the wp_user:
+     ```bash
+     docker exec -it mariadb mariadb -u wp_user -p
+     ```
+     Note: Passwords can only be found in the .env file.
+
+  2. **Verify available databases:**
+     ```sql
+     SHOW DATABASES;
+     ```
+
+  3. **Select the application database:**
+     ```sql
+     USE inception_db;
+     ```
+
+  4. **Display WordPress-generated tables:**
+     ```sql
+     SHOW TABLES;
+     ```
+
+</details>

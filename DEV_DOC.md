@@ -59,6 +59,50 @@ During build time and initialization scripts:
 
 When modifying services or troubleshooting configuration errors, use these targeted commands from the root directory:
 
+## Environment Reset (The "Nuke" Command)
+
+Before running or evaluating the project, it is highly recommended to completely purge the host machine of any active or
+residual Docker containers, images, volumes, and networks to prevent conflicts:
+
+```bash
+docker stop $(docker ps -qa); docker rm $(docker ps -qa); docker rmi -f $(docker images -qa); docker volume rm $(docker volume ls -q); docker network rm $(docker network ls -q) 2>/dev/null 
+```
+
+### Code Compliance & Anti-Cheating Audit
+
+To ensure the repository complies with all 42 rules and contains no forbidden commands or configurations
+(which would result in an immediate fail), you can run the following automated checks:
+
+*   **Check for prohibited background/blocking loops (`sleep infinity` or `tail -f`):**
+    ```bash
+    grep -ri "sleep" srcs/
+    grep -ri "tail" srcs/
+    ```
+
+*   **Check for forbidden network shortcuts (`network: host` or legacy `links:`):**
+    ```bash
+    grep -ri "network: host" srcs/
+    grep -ri "links:" srcs/
+    ```
+
+*   **Check for prohibited `--link` options in scripts or commands:**
+    ```bash
+    grep -ri "--link" srcs/
+    ```
+
+*Note: If these commands return no output (or only show expected configurations), your codebase is 100% compliant and safe.*
+
+### Base Image Version Verification
+
+To verify that all containers are built using the compliant penultimate stable version of Alpine or Debian without opening
+each Dockerfile individually:
+
+```bash
+grep -ri "FROM" srcs/
+```
+
+*Note: This will output the FROM instruction for Nginx, WordPress, and MariaDB, allowing immediate validation of the base OS versions.*
+
 ### Container Inspection
 
 * **Check real-time logs for all services:**
@@ -84,7 +128,7 @@ docker exec -it nginx sh
 docker exec -it wordpress sh
 ```
 
-* **Query the NariaDB Database Directly:**
+* **Query the MariaDB Database Directly:**
 ```bash
 docker exec -it mariadb mariadb -u root -p
 ```
@@ -97,7 +141,8 @@ docker compose -f srcs/docker-compose.yml up -d --build --no-cache
 ```
 
 ## 5. Data Persistence & Volume Mechanics
-Data persistence is critical to prevent state loss when containers recycle. Docker Volumes are mounted onto specific host paths to isolate runtime engines from static application data.
+Data persistence is critical to prevent state loss when containers recycle. Docker Volumes are mounted onto specific host paths
+to isolate runtime engines from static application data.
 Host Path Mapping
 
 As required by the administration deployment guidelines, the persistent storage maps to explicit partitions on the host system:
@@ -115,3 +160,40 @@ docker volume inspect srcs_wordpress
 docker volume inspect srcs_mariadb
 ```
 
+## 🔒 Git & Security Audit Protocol
+
+This section outlines the commands used to audit the repository before pushing, ensuring no sensitive credentials
+(such as those in the `.env` file) are committed or tracked in the Git history.
+
+### 1. Verification of Ignored Files
+
+To ensure that sensitive configuration files (like `.env`) are properly ignored by Git and will not be tracked:
+
+```bash
+git check-ignore -v srcs/.env
+```
+*Note: the -v (verbose) flag is highly recommended as it displays the exact file and line number of the .gitignore rule responsible*
+*for ignoring the file.*
+
+### 2. Verification of Tracked Files
+
+Even if a file is added to `.gitignore`, Git will continue to track it if it was committed beforehand.
+To verify that no `.env` file is currently tracked in your index:
+
+```bash
+git ls-files | grep "\.env"
+```
+
+*Note: If this command returns no output, it means you .env file is safe and not tracked by Git.*
+
+### 3. Git History Audit (The "Pickaxe" Search)
+
+To ensure no sensitive variables or passwords (such as SQL_ROOT_PASSWORD) were accidentally committed in the past and
+remain hidden in the Git history:
+
+```bash
+git log -S "SQL_ROOT_PASSWORD"
+```
+
+*Note: Replace "SQL_ROOT_PASSWORD" with any sensitive keyword or password to search the entire commit history for its*
+*addition or removal. If no commits are listed, your history is clean.*

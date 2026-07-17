@@ -5,6 +5,9 @@ all:
 	@mkdir -p /home/yafranco/data/wordpress
 	docker compose -f srcs/docker-compose.yml up -d --build
 
+stop:
+	docker compose -f srcs/docker-compose.yml stop
+
 clean:
 	docker compose -f srcs/docker-compose.yml down -v
 
@@ -15,5 +18,5 @@ fclean:	clean
 
 re:	fclean all
 
-.PHONY: all clean fclean re
+.PHONY: all stop clean fclean re
 
