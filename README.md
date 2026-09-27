@@ -1,180 +1,130 @@
 *This activity has been created as part of the 42 curriculum by yafranco.*
 
+# Inception: Multi-Container Web Infrastructure
+
 ## Description
-This project aims to broaden my knowledge of system administration by using Docker Compose to virtualize a small infrastructure.
-The infrastructure consists of multiple Docker containers running specific services: an Nginx web server
-(configured with TLSv1.2 or TLSv1.3 only), a WordPress instance coupled with PHP-FPM, and a MariaDB database.
-All components are interconnected via a dedicated isolated Docker network and utilize persistent volumes to guarantee data retention.
+A fully containerized, production-oriented web infrastructure deployed using **Docker Compose**. The stack orchestrates an **Nginx** reverse proxy enforcing strict TLS standards, a **WordPress** engine running on **PHP-FPM**, and an isolated **MariaDB** database backend, bound via custom bridge networks and persistent host volumes.
 
-## Instructions
-To build, run, and manage this infrastructure, a Makefile is provided at the root of the repository.
+---
 
-## 📁 Project Structure & Setup
+## Infrastructure Architecture
 
-To clone and inspect the directory structure of this project, follow these steps:
-
-### 1. Clone the repository
-```bash
-git clone <your-repository-url> Inception && cd Inception
+```text
+                    Internet / Client
+                            │
+                            │ HTTPS (Port 443) [TLSv1.2 / TLSv1.3]
+                            ▼
+                 ┌─────────────────────┐
+                 │   Nginx Container   │
+                 │  (TLS Termination)  │
+                 └──────────┬──────────┘
+                            │
+                            │ FastCGI Protocol (Port 9000 - Internal)
+                            ▼
+                 ┌─────────────────────┐      ┌─────────────────────┐
+                 │  WordPress PHP-FPM  │◄────►│  MariaDB Database   │
+                 │      Container      │      │      Container      │
+                 └──────────┬──────────┘      └──────────┬──────────┘
+                            │                            │
+             ┌──────────────┴──────────────┐      ┌──────┴──────────────┐
+             ▼                             ▼      ▼                     ▼
+      wp-data volume                 Custom Docker Network         db-data volume
 ```
 
-### 2. Expected Directory Structure
+## Key Engineering Constraints
+- **Zero Pre-Built Images**: All container images are compiled from custom base images via explicit Dockerfiles (no ready-made Docker Hub application images).
+- **Process Isolation**: Adheres strictly to the single-responsibility principle (one primary process per container)
+- **Perimeter Defense**: Only the Nginx reverse proxy exposes port 443 externally. WordPress and MariaDB communicate exclusively within an isolated internal bridge network.
 
-Verify that the srcs folder and the Makefile are located at the root of the repository:
+## Directory Structure
 
 ```Plaintext
 .
-├── srcs/
-│   ├── docker-compose.yml
-│   └── ...
-├── Makefile
-├── README.md
-├── USER_DOC.md
-└── DEV_DOC.md
+├── Makefile                     # Infrastructure automation lifecycle
+├── README.md                    # System architecture documentation
+├── DEV_DOC.md                   # Internal engineering guidelines
+├── USER_DOC.md                  # Deployment & administration guide
+└── srcs/
+    ├── docker-compose.yml       # Stack service definitions & network topology
+    ├── .env.example             # Template for required environment variables
+    └── requirements/
+        ├── mariadb/             # Dockerfile, custom scripts & configs
+        ├── nginx/               # Dockerfile, TLS certificates & nginx.conf
+        └── wordpress/           # Dockerfile, PHP-FPM configuration & WP-CLI setup
 ```
 
-### Setup and Execution
-1. To build, configure, and start all containers in the background:
+## Quickstart
+1. **Prerequisites & Host Configuration**
+Map the local domain in your host's /etc/hosts file:
    ```bash
-   make
+   sudo echo "127.0.0.1 yafranco.42.fr" >> /etc/hosts
    ```
-2. To stop and remove all running containers without losing persistent data:
+2. **Environment Configuration**
+Create the .env configuration file from the template:
    ```bash
-   make stop
+   cp srcs/.env.example srcs/.env
+   # Edit srcs/.env with your secure database and admin credentials
    ```
-3. To stop and fully clean up the infrastructure (including containers, networks, and images):
+3. **Lifecycle Automation via Makefile**
    ```bash
-   make clean
+   make         # Builds custom images and starts all services in detached mode
+   make stop    # Halts active containers without dropping persistent volume data
+   make clean   # Stops containers and removes associated networks and runtime images
+   make fclean  # Complete purge: clears containers, networks, images, and host-bound volumes
+   make re      # Performs a clean rebuild from scratch
    ```
-4. To perform a deep clean (including persistent volumes data on the host machine):
-   ```bash
-   make fclean
-   ```
+4. **Access Endpoints**
+   - Public Web Application: https://yafranco.42.fr
+   - WordPress Admin Panel: https://yafranco.42.fr/wp-admin
 
-### Accessing the Website (Cluster Workaround)
+## Architectural Trade-offs & Security Principles
+1. **Bare-Metal Virtual Machines vs. Containers**
+- **Virtual Machines (VMs)**: Abstract physical hardware via a hypervisor, requiring an entire guest OS kernel, emulated drivers, and high memory footprints.
+- **Containers**: Abstract the host kernel via cgroups and namespaces. Boot times drop from minutes to sub-seconds, with minimal resource overhead and reproducible configuration.
 
-Since we do not have administrator (sudo) privileges on the school's host machines, we cannot modify the /etc/hosts file
-to map yafranco.42.fr to our loopback IP.
-To bypass this restriction and access the site using the clean, required URL, we use a volatile DNS resolution directly
-within the browser. Run the following command on your host terminal (not inside the VM):
+2. **Secrets Management vs. Environment Variables**
+- **Environment Variables**: Readable via process inspection (ps aux, /proc/$PID/environ) or docker inspect. Suitable only for non-sensitive system toggles.
+- **Docker Secrets**: Stored encrypted in memory, mounted temporarily into /run/secrets/, preventing disk persistence and log leaks.
+
+3. **Network Isolation (Isolated Bridge vs. Host Network)**
+- **Host Mode**: Eliminates network boundaries; all ports bind directly to host interfaces, escalating blast radius if a web service is breached.
+- **Custom Bridge Network**: Provides internal software-defined subnetting with automatic service discovery (DNS). Databases remain unreachable from outside interfaces.
+
+4. **Storage Persistence (Named Volumes vs. Host Bind Mounts)**
+- **Bind Mounts**: Tightly coupled to host file system structures, risking privilege escalation and container portability issues.
+- **Docker Volumes**: Fully abstracted by the container runtime, isolated from host direct access, enabling automated lifecycle management and atomic backups.
+
+### Validation & Verification Protocol
+
+## **TLS & Certificate Inspection**
+Validate that external traffic is encrypted exclusively via modern cryptographic standards:
 ```bash
-chromium-browser --user-data-dir=/tmp/chrome_temp --host-rules="MAP yafranco.42.fr 127.0.0.1:4430" --ignore-certificate-errors &
+openssl s_client -connect yafranco.42.fr:443 -tls1_3 < /dev/null | openssl x509 -text -noout
 ```
+*Expected audit results*:
+- **Subject / CN**: Must resolve strictly to yafranco.42.fr.
+- **TLS Protocol**: Only TLSv1.2 or TLSv1.3 handshakes are accepted.
 
-Note: This command routes yafranco.42.fr through the host's port 4430, which forwards traffic directly to Nginx's secure port 443 inside the VM. This allows you to access the site using the clean, required URL without any visible port numbers.
+## **Database Integrity & Principle of Least Privilege**
+1. **Connect to MariaDB container**:
+```bash
+docker exec -it mariadb mariadb -u root -p
+```
+2. **Verify target application database**:
+```bash
+SHOW DATABASES;
+USE inception_db;
+SHOW TABLES;
+```
+3. **Audit user grant privileges**:
+```bash
+SELECT User, Host FROM mysql.user;
+SHOW GRANTS FOR 'wp_user'@'%';
+```
+*Verification criteria*: Confirms that the application user (wp_user) is strictly granted permissions on inception_db.* and has zero administrative privileges over system databases.
 
-Once Chromium opens, you can access the services at:
-
-* **WordPress Website:** https://yafranco.42.fr
-* **WordPress Admin Dashboard:** https://yafranco.42.fr/wp-admin
-
-(For more detailed instructions, credentials management, and troubleshooting, please refer to USER_DOC.md.)
-
-*   **Inspect the Certificate Metadata directly over the network:**
-    ```bash
-    openssl s_client -connect yafranco.42.fr:443 2>/dev/null | openssl x509 -text -noout
-    ```
-    *What the evaluator will check:*
-    *   **Subject / CN (Common Name):** Must match `yafranco.42.fr` strictly.
-    *   **Issuer:** Must confirm it is a self-signed certificate generated locally for the project.
-
-### Project Description
-
-This infrastructure uses Docker Compose to orchestrate independent containers, ensuring service isolation and reproducible environments.
-Each service runs in its own container, adhering to the "one container, one service" philosophy.
-
-### Technical Comparisons
-**1. Virtual Machines vs Docker**
-
-* **Virtual Machines (VMs):** VMs virtualize physical hardware. Each VM includes a full guest operating system, virtual drivers,
-and a hypervisor layer. This results in a heavy resource footprint, slow boot times, and significant memory overhead.
-
-* **Docker Containers:** Containers virtualize the operating system kernel instead of the hardware.
-They share the host system's kernel, making them lightweight, fast to boot (seconds), and highly efficient in terms of CPU and
-memory utilization.
-
-**2. Secrets vs Environment Variables**
-
-* **Environment Variables:** These variables are stored in plain text within the process environment.
-They can easily leak through system logs, process listings (ps), or container inspection tools (docker inspect).
-They are suitable for non-sensitive configurations.
-
-* **Secrets:** Secrets are designed to handle sensitive data like passwords or API keys securely.
-They are encrypted at rest, transmitted securely, and mounted dynamically in-memory only to authorized containers, minimizing the
-risk of accidental exposure.
-
-**3. Docker Network vs Host Network**
-
-* **Host Network:** In host networking mode, the container shares the host's network stack directly.
-There is no isolation between the host and the container, meaning container ports map directly to host ports, which can cause conflicts
-and introduces security risks.
-
-* **Docker Network (Bridge/Custom):** A custom Docker network creates an isolated private network layer for the containers.
-Containers can communicate securely with each other using internal IPs or service names (via automatic DNS), and only explicitly
-exposed ports are accessible from the host system.
-
-**4. Docker Volumes vs Bind Mounts**
-
-* **Bind Mounts:** A bind mount links a specific, absolute path on the host machine directly to a path inside the container.
-It depends on the host's file system structure, making it less portable and exposing the host files to potential corruption or
-security breaches by the container.
-
-* **Docker Volumes:** Volumes are entirely managed by Docker and stored within a dedicated directory on the host
-(/var/lib/docker/volumes/). They are completely isolated from the direct host file system structure, making them more secure,
-portable, and easier to backup or share between containers.
-
-### Resources
-
-* Official Docker and Docker Compose Documentation.
-* WordPress CLI and Alpine Linux package repositories.
-* Nginx and MariaDB official administration guides.
-* AI Usage: An AI assistant was used as a learning aid to clarify concepts regarding system architecture, cross-verify Docker
-volume mechanisms, and ensure proper security practices regarding environment variables.
-
-## 📊 Test and Validation Protocol
-
-This section compiles the official procedures to validate the proper functioning of the infrastructure and ensure database integrity.
-
-### 1. Database and Persistence Validation
-
-<details>
-  <summary><b>🔍 Click to expand the MariaDB inspection protocol</b></summary>
-
-  To prove that the database is active, correctly configured, and populated with data, follow these steps:
-
-  1. **Interactive connection to the MariaDB container:**
-     As the root user:
-     ```bash
-     docker exec -it mariadb mariadb -u root -p
-     ```
-     As the wp_user:
-     ```bash
-     docker exec -it mariadb mariadb -u wp_user -p
-     ```
-     Note: Passwords can only be found in the .env file.
-
-  2. **Verify available databases:**
-     ```sql
-     SHOW DATABASES;
-     ```
-     *Expected output: Must list your dedicated database (e.g., inception_db or as defined in .env).*
-
-  3. **Select the application database:**
-     ```sql
-     USE inception_db;
-     ```
-
-  4. **Display WordPress-generated tables:**
-     ```sql
-     SHOW TABLES;
-     ```
-
-  5. **Audit user privileges and host constraints:**
-     ```sql
-     SELECT User, Host FROM mysql.user;
-     SHOW GRANTS FOR 'wp_user'@'%';
-     ```
-     *What this proves: This confirms that the WordPress database user (wp_user) is restricted exclusively to the WordPress*
-     *database, adhering to the principle of least privilege.*
-
-</details>
+## References
+- Docker Engine & Compose Architecture Specifications
+- Nginx Official Administration & TLS Hardening Guide
+- MariaDB Knowledge Base & Security Hardening
+- WP-CLI Command Reference
